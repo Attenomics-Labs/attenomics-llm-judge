@@ -16,7 +16,6 @@ HF_TOKEN = os.getenv("HF_TOKEN")
 if not HF_TOKEN:
     raise Exception("HF_TOKEN environment variable not set! Please set it before running the app.")
 
-# Initialize the LLM client using your token
 repo_id = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 llm_client = InferenceClient(
     model=repo_id,
