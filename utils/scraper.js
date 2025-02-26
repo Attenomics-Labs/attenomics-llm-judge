@@ -23,31 +23,40 @@ async function getScraper() {
     console.log('Scraper is already logged in.');
   }
 
-  // Here we assume the Scraper instance has a method called `scrape` that returns data.
-  // If your API is different, adjust accordingly.
+  let data;
   try {
-    console.log('Starting scraping...');
-    const data = await scraper.scrape(); // Hypothetical method
-    console.log('Scraping complete. Preparing to store data as JSON...');
+    // Use target username from .env (or default to "elonmusk")
+    const targetUser = 'Anjanay_Raina';
+    console.log(`Fetching tweets for user: ${targetUser}`);
+    // Fetch the latest 10 tweets from the target user
+    data = await scraper.getTweets('Anjanay_Raina', 10);
+    console.log(data);
+    console.log('Tweet fetching complete. Preparing to store data as JSON...');
+  } catch (err) {
+    console.error('Error during tweet fetching:', err);
+    data = {
+      message: 'Tweet fetching failed; using dummy data.',
+      tweets: []
+    };
+  }
 
-    // Convert data to JSON
+  try {
+    // Convert the fetched tweet data to a formatted JSON string
     const jsonData = JSON.stringify(data, null, 2);
-
-    // Define output directory and file path
+    // Define the output directory (../output relative to this file)
     const outputDir = path.join(__dirname, '../output');
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
-    const outputFile = path.join(outputDir, 'scrapedData.json');
-
-    // Write JSON data to file
+    const outputFile = path.join(outputDir, 'tweets.json');
+    // Write the JSON string to the file
     fs.writeFileSync(outputFile, jsonData, 'utf8');
-    console.log(`Scraped data saved to ${outputFile}`);
+    console.log(`Tweet data saved to ${outputFile}`);
   } catch (err) {
-    console.error('Error during scraping and saving data:', err);
+    console.error('Error during storing tweet data as JSON:', err);
   }
   
   return scraper;
-};
+}
 
 module.exports = getScraper;

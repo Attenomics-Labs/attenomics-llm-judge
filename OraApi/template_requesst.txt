@@ -1,0 +1,12 @@
+curl -X POST http://localhost:8000/judge \
+  -H "Content-Type: application/json" \
+  -d '{
+    "posts": [
+          "Check out our new product launch! It is innovative, eye-catching, and promises to change the game.",
+          "Just another day in the office. Nothing much happening here.",
+          "Incredible concert last night! The energy was off the charts and the performance unforgettable!",
+          "This post is very bland with no interesting visuals or compelling content.",
+          "Hey guys, how are you all? When does this post get the best things done for us?"
+    ],
+    "total_points": 24000
+  }'

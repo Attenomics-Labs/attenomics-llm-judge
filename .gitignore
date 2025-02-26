@@ -1,3 +1,4 @@
 judge_env
 __pycache__
-.env
+*.env
+/utils/node_modules
