@@ -23,18 +23,27 @@ if not ORA_API_KEY:
 ORA_CHAT_COMPLETIONS_URL = "https://api.ora.io/v1/chat/completions"
 
 def create_batch_prompt(users, posts, total_points=24000):
+    """
+    Creates a prompt for the ORA API to distribute points among a list of posts.
+    Expects:
+      - users: list of creator names.
+      - posts: list of post objects (each with at least a "text" field).
+    Only the tweet text is used for evaluation.
+    """
     prompt = f"""
 You are given a list of social media posts along with their corresponding creator names.
 Your task is to distribute a total of {total_points} points among these posts based solely on the text content of each post.
-...
-Here are the posts with their creators as well so remeber to use those names and put them in the creator fields in the JSON output.:
+Consider factors such as creativity, clarity, visual impact, and potential engagement.
+Return your answer in JSON format, where the keys are the creator names provided and the values are the points allocated.
+Make sure that the sum of all the points equals exactly {total_points}.
+Here are the posts with their creators:
 """
     for idx, post in enumerate(posts, start=1):
         text = post.get("text", "")
         creator_name = users[idx-1] if idx-1 < len(users) else f"post_{idx}"
         prompt += f"{idx}. Creator: {creator_name}\n   Tweet: {text}\n"
     prompt += "\nProvide the JSON output now."
-    print(prompt)
+    print("Prompt:", prompt)
     return prompt
 
 def parse_ora_response(response_json):
@@ -46,14 +55,10 @@ def parse_ora_response(response_json):
         choices = response_json.get("choices", [])
         if not choices:
             raise ValueError("No choices found in response.")
-        # Get the assistant message content
         message_content = choices[0].get("message", {}).get("content", "")
-        
-        # Try parsing the whole content first
         try:
             return json.loads(message_content)
         except Exception:
-            # If that fails, try to extract a JSON substring.
             start = message_content.find('{')
             end = message_content.rfind('}')
             if start != -1 and end != -1 and end > start:
@@ -65,12 +70,11 @@ def parse_ora_response(response_json):
         print("Error parsing ORA response:", e)
         return None
 
-# New JudgeRequest schema that accepts users, posts, and total_points
+# JudgeRequest now accepts three fields: users, posts, and total_points.
 class JudgeRequest(BaseModel):
     users: list[str]
     posts: list[dict]
     total_points: int = 24000
-
 @app.post("/judge", summary="Distribute points among posts using ORA API")
 def judge_posts(request: JudgeRequest):
     # Create the prompt using both users and posts
@@ -95,7 +99,6 @@ def judge_posts(request: JudgeRequest):
             json=payload,
             timeout=120  # Adjust timeout as needed
         )
-        print("ORA API response object:", ora_response)
         ora_response.raise_for_status()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error calling ORA API: {str(e)}")
@@ -111,12 +114,26 @@ def judge_posts(request: JudgeRequest):
     if ratings_dict is None:
         raise HTTPException(status_code=500, detail="Could not parse the ORA API output as JSON.")
     
-    # Optionally, verify that the total distributed points equals total_points
-    # total = sum(ratings_dict.values())
-    # if total != request.total_points:
-    #     print(f"Warning: Distributed points sum to {total} instead of expected {request.total_points}")
-    
-    return ratings_dict
+    # Map the returned keys to the creator names.
+    # If the judge response already contains a key matching the creator name, use it;
+    # otherwise, use generic keys like "post_1", "post_2", etc.
+    mapped_response = {}
+    for i, creator in enumerate(request.users):
+        if creator in ratings_dict:
+            mapped_response[creator] = {
+                "creator": creator,
+                "points": ratings_dict[creator]
+            }
+        else:
+            key = f"post_{i+1}"
+            mapped_response[creator] = {
+                "creator": creator,
+                "points": ratings_dict.get(key, None)
+            }
+
+    print(mapped_response)
+    return mapped_response
+
 
 if __name__ == "__main__":
     import uvicorn
