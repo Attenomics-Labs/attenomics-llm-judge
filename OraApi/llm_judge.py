@@ -22,19 +22,19 @@ if not ORA_API_KEY:
 # ORA API endpoint for chat completions
 ORA_CHAT_COMPLETIONS_URL = "https://api.ora.io/v1/chat/completions"
 
-def create_batch_prompt(posts_list, total_points=24000):
-    """
-    Creates a prompt for the ORA API to distribute points among a list of posts.
-    """
+def create_batch_prompt(users, posts, total_points=24000):
     prompt = f"""
-You are given a list of social media posts. Your task is to distribute a total of {total_points} points among these posts based on how appealing and eye-catching they are.
-Consider factors such as creativity, clarity, visual impact, and potential engagement.
-Return your answer in JSON format with keys "post_1", "post_2", etc. Make sure that the sum of all the points equals exactly {total_points}.
-Here are the posts:
+You are given a list of social media posts along with their corresponding creator names.
+Your task is to distribute a total of {total_points} points among these posts based solely on the text content of each post.
+...
+Here are the posts with their creators as well so remeber to use those names and put them in the creator fields in the JSON output.:
 """
-    for idx, post in enumerate(posts_list, start=1):
-        prompt += f"{idx}. {post}\n"
+    for idx, post in enumerate(posts, start=1):
+        text = post.get("text", "")
+        creator_name = users[idx-1] if idx-1 < len(users) else f"post_{idx}"
+        prompt += f"{idx}. Creator: {creator_name}\n   Tweet: {text}\n"
     prompt += "\nProvide the JSON output now."
+    print(prompt)
     return prompt
 
 def parse_ora_response(response_json):
@@ -65,22 +65,21 @@ def parse_ora_response(response_json):
         print("Error parsing ORA response:", e)
         return None
 
-
-# Request payload for our judge endpoint
+# New JudgeRequest schema that accepts users, posts, and total_points
 class JudgeRequest(BaseModel):
-    posts: list[str]
+    users: list[str]
+    posts: list[dict]
     total_points: int = 24000
 
 @app.post("/judge", summary="Distribute points among posts using ORA API")
 def judge_posts(request: JudgeRequest):
-    # Create the prompt from the list of posts and total points
-    prompt = create_batch_prompt(request.posts, request.total_points)
-    
-    # ORA API expects a messages array. Here we send the prompt as a user message.
+    # Create the prompt using both users and posts
+    prompt = create_batch_prompt(request.users, request.posts, request.total_points)
+    # ORA API expects a messages array; here we send the prompt as a user message.
     messages = [{"role": "user", "content": prompt}]
     
     payload = {
-        "model": "deepseek-ai/DeepSeek-V3",  # Adjust the model name if needed
+        "model": "deepseek-ai/DeepSeek-V3",  # Adjust model if necessary
         "messages": messages
     }
     
@@ -96,14 +95,14 @@ def judge_posts(request: JudgeRequest):
             json=payload,
             timeout=120  # Adjust timeout as needed
         )
-        print(ora_response)
+        print("ORA API response object:", ora_response)
         ora_response.raise_for_status()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error calling ORA API: {str(e)}")
     
     try:
         response_json = ora_response.json()
-        print("Response Json : " , response_json)
+        print("Response JSON from ORA API:", response_json)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error parsing ORA API response as JSON: {str(e)}")
     
@@ -113,9 +112,9 @@ def judge_posts(request: JudgeRequest):
         raise HTTPException(status_code=500, detail="Could not parse the ORA API output as JSON.")
     
     # Optionally, verify that the total distributed points equals total_points
-    total = sum(ratings_dict.values())
-    if total != request.total_points:
-        print(f"Warning: Distributed points sum to {total} instead of expected {request.total_points}")
+    # total = sum(ratings_dict.values())
+    # if total != request.total_points:
+    #     print(f"Warning: Distributed points sum to {total} instead of expected {request.total_points}")
     
     return ratings_dict
 
