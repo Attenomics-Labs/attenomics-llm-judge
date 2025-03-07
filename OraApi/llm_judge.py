@@ -102,10 +102,11 @@ class JudgeRequest(BaseModel):
     total_points: int = 24000
 @app.post("/judge", summary="Distribute points among posts using ORA API")
 def judge_posts(request: JudgeRequest):
-    # print(f"Total points: {request.total_points}")
-    # print("Users:", request.users)
-    # print("Posts:", request.posts[0].keys())
+    print(f"Total points: {request.total_points}")
+    print("Users:", request.users)
+    print("Posts:", request.posts[0].keys())
     # Create the prompt using both users and posts
+
     prompt = create_batch_prompt(request.users, request.posts, request.total_points)
     # ORA API expects a messages array; here we send the prompt as a user message.
     messages = [{"role": "user", "content": prompt}]
